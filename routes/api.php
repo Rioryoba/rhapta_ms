@@ -65,7 +65,7 @@ Route::middleware(['auth:api', 'role:accountant'])->group(function () {
     Route::post('invoices/{invoice}/payments', [App\Http\Controllers\API\InvoiceController::class, 'payInvoice']);
 });
 // Other invoice actions remain open (customize as needed)
-Route::apiResource('leaves', App\Http\Controllers\API\LeaveController::class);
+Route::apiResource('leaves', App\Http\Controllers\API\LeaveController::class)->middleware(['auth:api']);
 Route::apiResource('performances', App\Http\Controllers\API\PerformanceController::class)->middleware(['auth:api']);
 Route::apiResource('trainings', App\Http\Controllers\API\TrainingController::class)->middleware(['auth:api']);
 Route::apiResource('maintenance-records', App\Http\Controllers\API\MaintenanceRecordController::class);
@@ -82,12 +82,13 @@ Route::middleware(['auth:api', 'role:staff,admin,hr'])->group(function () {
     Route::put('notifications/{notification}/archive', [App\Http\Controllers\API\NotificationController::class, 'archive']);
 });
 Route::apiResource('payments', App\Http\Controllers\API\PaymentController::class);
-Route::apiResource('payrolls', App\Http\Controllers\API\PayrollController::class)->middleware(['auth:api']);
+// Payroll specific routes must come before apiResource to avoid route conflicts
 Route::get('payrolls/attendance-summary', [App\Http\Controllers\API\PayrollController::class, 'getAttendanceSummary'])->middleware(['auth:api']);
 Route::post('payrolls/calculate', [App\Http\Controllers\API\PayrollController::class, 'calculatePayroll'])->middleware(['auth:api']);
+Route::apiResource('payrolls', App\Http\Controllers\API\PayrollController::class)->middleware(['auth:api']);
 Route::apiResource('positions', App\Http\Controllers\API\PositionController::class)->middleware(['auth:api', 'role:admin,hr']);
 Route::apiResource('products', App\Http\Controllers\API\ProductController::class);
-Route::apiResource('projects', App\Http\Controllers\API\ProjectController::class);
+Route::apiResource('projects', App\Http\Controllers\API\ProjectController::class)->middleware(['auth:api']);
 // Roles: allow HR and admin to view roles (for assigning to employees), but only admin can create/update/delete
 Route::middleware(['auth:api'])->group(function () {
     Route::get('roles', [App\Http\Controllers\API\RoleController::class, 'index'])->middleware('role:admin,hr');
@@ -109,7 +110,13 @@ Route::middleware(['auth:api'])->group(function () {
     Route::delete('sales/{sale}', [App\Http\Controllers\API\SaleController::class, 'destroy'])->middleware('role:admin,accountant');
 });
 Route::apiResource('sales-orders', App\Http\Controllers\API\SalesOrderController::class);
-Route::apiResource('tasks', App\Http\Controllers\API\TasksController::class);
+Route::apiResource('activities', App\Http\Controllers\API\ActivityController::class)->middleware(['auth:api']);
+Route::apiResource('tasks', App\Http\Controllers\API\TasksController::class)->middleware(['auth:api']);
+// Progress updates routes
+Route::middleware(['auth:api'])->group(function () {
+    Route::post('tasks/{task}/progress-updates', [App\Http\Controllers\API\TasksController::class, 'storeProgressUpdate']);
+    Route::get('tasks/progress-updates', [App\Http\Controllers\API\TasksController::class, 'getProgressUpdates']);
+});
 // Accounts routes: create/update protected by role middleware; deletion disabled
 Route::get('accounts', [App\Http\Controllers\API\AccountController::class, 'index'])->middleware(['auth:api','role:accountant,ceo']);
 Route::get('accounts/{account}', [App\Http\Controllers\API\AccountController::class, 'show'])->middleware(['auth:api','role:accountant,ceo']);
@@ -235,4 +242,13 @@ Route::middleware(['auth:api'])->group(function () {
 // Income & Sales Summary route
 Route::middleware(['auth:api', 'role:accountant,admin,ceo'])->group(function () {
     Route::get('income-sales/summary', [App\Http\Controllers\API\IncomeSalesSummaryController::class, 'index']);
+});
+
+// Staff Projects routes - for staff to view their assigned projects and submit daily activities
+// Allow staff, employee, user, admin, and hr roles
+Route::middleware(['auth:api'])->group(function () {
+    Route::get('staff/projects', [App\Http\Controllers\API\StaffProjectController::class, 'index']);
+    Route::get('staff/projects/{projectId}/daily-activities', [App\Http\Controllers\API\StaffProjectController::class, 'getProjectDailyActivities']);
+    Route::post('staff/projects/{projectId}/daily-activities', [App\Http\Controllers\API\StaffProjectController::class, 'submitDailyActivity']);
+    Route::get('staff/projects/daily-activities', [App\Http\Controllers\API\StaffProjectController::class, 'getAllDailyActivities']);
 });
